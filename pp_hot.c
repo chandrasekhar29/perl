@@ -1468,7 +1468,7 @@ PP(pp_match)
     }
     if (!CALLREGEXEC(rx, (char*)s, (char *)strend, (char*)truebase,
 		     minmatch, TARG, NUM2PTR(void*, gpos), r_flags))
-	goto ret_no;
+	goto nope;
 
   gotcha:
     PL_curpm = pm;
@@ -1551,7 +1551,6 @@ PP(pp_match)
     /* NOTREACHED */
 
 nope:
-ret_no:
     if (global && !(dynpm->op_pmflags & PMf_CONTINUE)) {
 	if (SvTYPE(TARG) >= SVt_PVMG && SvMAGIC(TARG)) {
 	    MAGIC* const mg = mg_find(TARG, PERL_MAGIC_regex_global);
