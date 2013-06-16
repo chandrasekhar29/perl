@@ -1462,6 +1462,30 @@ PP(pp_match)
     if (rxtainted)
 	RX_MATCH_TAINTED_on(rx);
     TAINT_IF(RX_MATCH_TAINTED(rx));
+
+    /* update pos */
+
+    if (global && (gimme != G_ARRAY || (dynpm->op_pmflags & PMf_CONTINUE))) {
+        MAGIC* mg = NULL;
+        if (SvTYPE(TARG) >= SVt_PVMG && SvMAGIC(TARG))
+            mg = mg_find(TARG, PERL_MAGIC_regex_global);
+        if (!mg) {
+#ifdef PERL_OLD_COPY_ON_WRITE
+            if (SvIsCOW(TARG))
+                sv_force_normal_flags(TARG, 0);
+#endif
+            mg = sv_magicext(TARG, NULL, PERL_MAGIC_regex_global,
+                             &PL_vtbl_mglob, NULL, 0);
+        }
+        if (RX_OFFS(rx)[0].start != -1) {
+            mg->mg_len = RX_OFFS(rx)[0].end;
+            if (RX_OFFS(rx)[0].start + RX_GOFS(rx) == (UV)RX_OFFS(rx)[0].end)
+                mg->mg_flags |= MGf_MINMATCH;
+            else
+                mg->mg_flags &= ~MGf_MINMATCH;
+        }
+    }
+
     if (gimme == G_ARRAY) {
 	const I32 nparens = RX_NPARENS(rx);
 	I32 i = (global && !nparens) ? 1 : 0;
@@ -1486,26 +1510,6 @@ PP(pp_match)
 	    }
 	}
 	if (global) {
-	    if (dynpm->op_pmflags & PMf_CONTINUE) {
-		MAGIC* mg = NULL;
-		if (SvTYPE(TARG) >= SVt_PVMG && SvMAGIC(TARG))
-		    mg = mg_find(TARG, PERL_MAGIC_regex_global);
-		if (!mg) {
-#ifdef PERL_OLD_COPY_ON_WRITE
-		    if (SvIsCOW(TARG))
-			sv_force_normal_flags(TARG, 0);
-#endif
-		    mg = sv_magicext(TARG, NULL, PERL_MAGIC_regex_global,
-				     &PL_vtbl_mglob, NULL, 0);
-		}
-		if (RX_OFFS(rx)[0].start != -1) {
-		    mg->mg_len = RX_OFFS(rx)[0].end;
-		    if (RX_OFFS(rx)[0].start + RX_GOFS(rx) == (UV)RX_OFFS(rx)[0].end)
-			mg->mg_flags |= MGf_MINMATCH;
-		    else
-			mg->mg_flags &= ~MGf_MINMATCH;
-		}
-	    }
 	    had_zerolen = (RX_OFFS(rx)[0].start != -1
 			   && (RX_OFFS(rx)[0].start + RX_GOFS(rx)
 			       == (UV)RX_OFFS(rx)[0].end));
@@ -1519,28 +1523,6 @@ PP(pp_match)
 	RETURN;
     }
     else {
-	if (global) {
-	    MAGIC* mg;
-	    if (SvTYPE(TARG) >= SVt_PVMG && SvMAGIC(TARG))
-		mg = mg_find(TARG, PERL_MAGIC_regex_global);
-	    else
-		mg = NULL;
-	    if (!mg) {
-#ifdef PERL_OLD_COPY_ON_WRITE
-		if (SvIsCOW(TARG))
-		    sv_force_normal_flags(TARG, 0);
-#endif
-		mg = sv_magicext(TARG, NULL, PERL_MAGIC_regex_global,
-				 &PL_vtbl_mglob, NULL, 0);
-	    }
-	    if (RX_OFFS(rx)[0].start != -1) {
-		mg->mg_len = RX_OFFS(rx)[0].end;
-		if (RX_OFFS(rx)[0].start + RX_GOFS(rx) == (UV)RX_OFFS(rx)[0].end)
-		    mg->mg_flags |= MGf_MINMATCH;
-		else
-		    mg->mg_flags &= ~MGf_MINMATCH;
-	    }
-	}
 	LEAVE_SCOPE(oldsave);
 	RETPUSHYES;
     }
