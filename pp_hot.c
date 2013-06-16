@@ -1444,6 +1444,9 @@ PP(pp_match)
 	if ( (RX_EXTFLAGS(rx) & RXf_CHECK_ALL)
 	     && !SvROK(TARG))	/* Cannot trust since INTUIT cannot guess ^ */
         {
+            /* we can match based purely on the result of INTUIT.
+             * Fix up all the things that won't get set because we skip
+             * calling regexec() */
             assert(!RX_NPARENS(rx));
             /* match via INTUIT shouldn't have any captures.
              * Let @-, @+, $^N know */
@@ -1460,13 +1463,14 @@ PP(pp_match)
                 RX_MATCH_UTF8(rx)
                     ? (char*)utf8_hop((U8*)s, RX_MINLENRET(rx)) - truebase
                     : s - truebase + RX_MINLENRET(rx);
-	    goto yup;
+	    goto gotcha;
         }
     }
     if (!CALLREGEXEC(rx, (char*)s, (char *)strend, (char*)truebase,
 		     minmatch, TARG, NUM2PTR(void*, gpos), r_flags))
 	goto ret_no;
 
+  gotcha:
     PL_curpm = pm;
     if (dynpm->op_pmflags & PMf_ONCE) {
 #ifdef USE_ITHREADS
@@ -1476,7 +1480,6 @@ PP(pp_match)
 #endif
     }
 
-  gotcha:
     if (rxtainted)
 	RX_MATCH_TAINTED_on(rx);
     TAINT_IF(RX_MATCH_TAINTED(rx));
@@ -1508,6 +1511,8 @@ PP(pp_match)
 	LEAVE_SCOPE(oldsave);
 	RETPUSHYES;
     }
+
+    /* push captures on stack */
 
     {
 	const I32 nparens = RX_NPARENS(rx);
@@ -1543,27 +1548,7 @@ PP(pp_match)
 	LEAVE_SCOPE(oldsave);
 	RETURN;
     }
-
-yup:					/* Confirmed by INTUIT */
-    if (rxtainted)
-	RX_MATCH_TAINTED_on(rx);
-    TAINT_IF(RX_MATCH_TAINTED(rx));
-    PL_curpm = pm;
-    if (dynpm->op_pmflags & PMf_ONCE) {
-#ifdef USE_ITHREADS
-        SvREADONLY_on(PL_regex_pad[dynpm->op_pmoffset]);
-#else
-        dynpm->op_pmflags |= PMf_USED;
-#endif
-    }
-
-
-    if (global) {
-	goto gotcha;
-    }
-
-    LEAVE_SCOPE(oldsave);
-    RETPUSHYES;
+    /* NOTREACHED */
 
 nope:
 ret_no:
