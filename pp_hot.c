@@ -1441,9 +1441,7 @@ PP(pp_match)
 
 	if (!s)
 	    goto nope;
-	if ( (RX_EXTFLAGS(rx) & RXf_CHECK_ALL)
-	     && !SvROK(TARG))	/* Cannot trust since INTUIT cannot guess ^ */
-        {
+	if (RX_EXTFLAGS(rx) & RXf_CHECK_ALL) {
             /* we can match based purely on the result of INTUIT.
              * Fix up all the things that won't get set because we skip
              * calling regexec() */
