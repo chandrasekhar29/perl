@@ -1330,9 +1330,7 @@ PP(pp_match)
     bool rxtainted;
     const I32 gimme = GIMME;
     STRLEN len;
-    I32 minmatch = 0;
     const I32 oldsave = PL_savestack_ix;
-    I32 update_minmatch = 1;
     I32 had_zerolen = 0;
 
     if (PL_op->op_flags & OPf_STACKED)
@@ -1397,8 +1395,11 @@ PP(pp_match)
 		}
 		else if (!(RX_EXTFLAGS(rx) & RXf_GPOS_FLOAT))
 		    curpos = mg->mg_len;
-		minmatch = (mg->mg_flags & MGf_MINMATCH) ? RX_GOFS(rx) + 1 : 0;
-		update_minmatch = 0;
+                else
+                    curpos = mg->mg_len;
+                /* last time pos() was set, it was zero-length match */
+		if (mg->mg_flags & MGf_MINMATCH)
+                    had_zerolen = 1;
 	    }
 	}
     }
@@ -1422,17 +1423,11 @@ PP(pp_match)
 
   play_it_again:
     if (global) {
-	s = truebase + curpos - RX_GOFS(rx);
-	if ((s + RX_MINLEN(rx)) > strend || s < truebase) {
-	    DEBUG_r(PerlIO_printf(Perl_debug_log, "Regex match can't succeed, so not even tried\n"));
-	    goto nope;
-	}
-	if (update_minmatch++)
-	    minmatch = had_zerolen;
+	s = truebase + curpos;
     }
 
     if (!CALLREGEXEC(rx, (char*)s, (char *)strend, (char*)truebase,
-		     minmatch, TARG, NULL, r_flags))
+		     had_zerolen, TARG, NULL, r_flags))
 	goto nope;
 
     PL_curpm = pm;
@@ -1462,9 +1457,10 @@ PP(pp_match)
             mg = sv_magicext(TARG, NULL, PERL_MAGIC_regex_global,
                              &PL_vtbl_mglob, NULL, 0);
         }
+        assert(RX_OFFS(rx)[0].start != -1); /* XXX get rid of next line? */
         if (RX_OFFS(rx)[0].start != -1) {
             mg->mg_len = RX_OFFS(rx)[0].end;
-            if (RX_OFFS(rx)[0].start + RX_GOFS(rx) == (UV)RX_OFFS(rx)[0].end)
+            if (RX_ZERO_LEN(rx))
                 mg->mg_flags |= MGf_MINMATCH;
             else
                 mg->mg_flags &= ~MGf_MINMATCH;
@@ -1502,11 +1498,8 @@ PP(pp_match)
 	    }
 	}
 	if (global) {
-            assert(RX_OFFS(rx)[0].start != -1);
             curpos = (UV)RX_OFFS(rx)[0].end;
-	    had_zerolen = (RX_OFFS(rx)[0].start != -1
-			   && (RX_OFFS(rx)[0].start + RX_GOFS(rx)
-			       == (UV)curpos));
+	    had_zerolen = RX_ZERO_LEN(rx);
 	    PUTBACK;			/* EVAL blocks may use stack */
 	    r_flags |= REXEC_IGNOREPOS | REXEC_NOT_FIRST;
 	    goto play_it_again;
