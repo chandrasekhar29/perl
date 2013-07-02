@@ -282,6 +282,7 @@ Perl_pad_new(pTHX_ int flags)
     else {
 	av_store(pad, 0, NULL);
 	padname = newAV();
+	av_store(padname, 0, &PL_sv_undef);
     }
 
     /* Most subroutines never recurse, hence only need 2 entries in the padlist
@@ -1639,7 +1640,7 @@ Perl_pad_swipe(pTHX_ PADOFFSET po, bool refadjust)
     PL_curpad[po] = newSV(0);
     SvPADTMP_on(PL_curpad[po]);
 #else
-    PL_curpad[po] = &PL_sv_undef;
+    PL_curpad[po] = NULL;
 #endif
     if ((I32)po < PL_padix)
 	PL_padix = po - 1;
@@ -1750,21 +1751,22 @@ Perl_pad_tidy(pTHX_ padtidy_type type)
 	av_store(PL_comppad_name, AvFILLp(PL_comppad), NULL);
 
     if (type == padtidy_SUBCLONE) {
-	SV * const * const namep = AvARRAY(PL_comppad_name);
+	SV ** const namep = AvARRAY(PL_comppad_name);
 	PADOFFSET ix;
 
 	for (ix = AvFILLp(PL_comppad); ix > 0; ix--) {
 	    SV *namesv;
+	    if (!namep[ix]) namep[ix] = &PL_sv_undef;
 
-	    if (SvIMMORTAL(PL_curpad[ix]) || IS_PADGV(PL_curpad[ix]) || IS_PADCONST(PL_curpad[ix]))
+	    if (!PL_curpad[ix] || SvIMMORTAL(PL_curpad[ix])
+		 || IS_PADGV(PL_curpad[ix]) || IS_PADCONST(PL_curpad[ix]))
 		continue;
 	    /*
 	     * The only things that a clonable function needs in its
 	     * pad are anonymous subs.
 	     * The rest are created anew during cloning.
 	     */
-	    if (!((namesv = namep[ix]) != NULL &&
-		  namesv != &PL_sv_undef &&
+	    if (!((namesv = namep[ix]) != &PL_sv_undef &&
 		   *SvPVX_const(namesv) == '&'))
 	    {
 		SvREFCNT_dec(PL_curpad[ix]);
@@ -1780,10 +1782,12 @@ Perl_pad_tidy(pTHX_ padtidy_type type)
     }
 
     if (type == padtidy_SUB || type == padtidy_FORMAT) {
-	SV * const * const namep = AvARRAY(PL_comppad_name);
+	SV ** const namep = AvARRAY(PL_comppad_name);
 	PADOFFSET ix;
 	for (ix = AvFILLp(PL_comppad); ix > 0; ix--) {
-	    if (SvIMMORTAL(PL_curpad[ix]) || IS_PADGV(PL_curpad[ix]) || IS_PADCONST(PL_curpad[ix]))
+	    if (!namep[ix]) namep[ix] = &PL_sv_undef;
+	    if (!PL_curpad[ix] || SvIMMORTAL(PL_curpad[ix])
+		 || IS_PADGV(PL_curpad[ix]) || IS_PADCONST(PL_curpad[ix]))
 		continue;
 	    if (!SvPADMY(PL_curpad[ix])) {
 		SvPADTMP_on(PL_curpad[ix]);
