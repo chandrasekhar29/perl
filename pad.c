@@ -282,6 +282,7 @@ Perl_pad_new(pTHX_ int flags)
     else {
 	av_store(pad, 0, NULL);
 	padname = newAV();
+	av_store(padname, 0, &PL_sv_undef);
     }
 
     /* Most subroutines never recurse, hence only need 2 entries in the padlist
@@ -418,6 +419,7 @@ Perl_cv_undef(pTHX_ CV *cv)
 	    for (ix = AvFILLp(comppad_name); ix > 0; ix--) {
 		SV * const namesv = namepad[ix];
 		if (namesv && namesv != &PL_sv_undef
+		    && namesv != &PL_sv_placeholder
 		    && *SvPVX_const(namesv) == '&')
 		    {
 			CV * const innercv = MUTABLE_CV(curpad[ix]);
@@ -874,7 +876,7 @@ S_pad_check_dup(pTHX_ SV *name, U32 flags, const HV *ourstash)
     for (off = top; (I32)off > PL_comppad_name_floor; off--) {
 	SV * const sv = svp[off];
 	if (sv
-	    && sv != &PL_sv_undef
+	    && sv != &PL_sv_undef && sv != &PL_sv_placeholder
 	    && !SvFAKE(sv)
 	    && (   COP_SEQ_RANGE_LOW(sv)  == PERL_PADSEQ_INTRO
 		|| COP_SEQ_RANGE_HIGH(sv) == PERL_PADSEQ_INTRO)
@@ -899,7 +901,7 @@ S_pad_check_dup(pTHX_ SV *name, U32 flags, const HV *ourstash)
 	while (off > 0) {
 	    SV * const sv = svp[off];
 	    if (sv
-		&& sv != &PL_sv_undef
+		&& sv != &PL_sv_undef && sv != &PL_sv_placeholder
 		&& !SvFAKE(sv)
 		&& (   COP_SEQ_RANGE_LOW(sv)  == PERL_PADSEQ_INTRO
 		    || COP_SEQ_RANGE_HIGH(sv) == PERL_PADSEQ_INTRO)
@@ -1167,7 +1169,7 @@ S_pad_findlex(pTHX_ const char *namepv, STRLEN namelen, U32 flags, const CV* cv,
 
 	for (offset = AvFILLp(nameav); offset > 0; offset--) {
             const SV * const namesv = name_svp[offset];
-	    if (namesv && namesv != &PL_sv_undef
+	    if (namesv != &PL_sv_placeholder && namesv != &PL_sv_undef
 		    && SvCUR(namesv) == namelen
                     && sv_eq_pvn_flags(aTHX_ namesv, namepv, namelen,
                                     flags & padadd_UTF8_NAME ? SVf_UTF8 : 0))
@@ -1517,7 +1519,8 @@ Perl_intro_my(pTHX)
     for (i = PL_min_intro_pending; i <= PL_max_intro_pending; i++) {
 	SV * const sv = svp[i];
 
-	if (sv && sv != &PL_sv_undef && !SvFAKE(sv)
+	if (sv && sv != &PL_sv_undef && sv != &PL_sv_placeholder
+	    && !SvFAKE(sv)
 	    && COP_SEQ_RANGE_LOW(sv) == PERL_PADSEQ_INTRO)
 	{
 	    COP_SEQ_RANGE_HIGH_set(sv, PERL_PADSEQ_INTRO); /* Don't know scope end yet. */
@@ -1574,7 +1577,8 @@ Perl_pad_leavemy(pTHX)
     /* "Deintroduce" my variables that are leaving with this scope. */
     for (off = AvFILLp(PL_comppad_name); off > PL_comppad_name_fill; off--) {
 	SV * const sv = svp[off];
-	if (sv && sv != &PL_sv_undef && !SvFAKE(sv)
+	if (sv && sv != &PL_sv_undef && sv != &PL_sv_placeholder
+	    && !SvFAKE(sv)
 	    && COP_SEQ_RANGE_HIGH(sv) == PERL_PADSEQ_INTRO)
 	{
 	    COP_SEQ_RANGE_HIGH_set(sv, PL_cop_seqmax);
@@ -1639,7 +1643,7 @@ Perl_pad_swipe(pTHX_ PADOFFSET po, bool refadjust)
     PL_curpad[po] = newSV(0);
     SvPADTMP_on(PL_curpad[po]);
 #else
-    PL_curpad[po] = &PL_sv_undef;
+    PL_curpad[po] = &PL_sv_placeholder;
 #endif
     if ((I32)po < PL_padix)
 	PL_padix = po - 1;
@@ -1750,11 +1754,12 @@ Perl_pad_tidy(pTHX_ padtidy_type type)
 	av_store(PL_comppad_name, AvFILLp(PL_comppad), NULL);
 
     if (type == padtidy_SUBCLONE) {
-	SV * const * const namep = AvARRAY(PL_comppad_name);
+	SV ** const namep = AvARRAY(PL_comppad_name);
 	PADOFFSET ix;
 
 	for (ix = AvFILLp(PL_comppad); ix > 0; ix--) {
 	    SV *namesv;
+	    if (namep[ix] == &PL_sv_placeholder) namep[ix] = &PL_sv_undef;
 
 	    if (SvIMMORTAL(PL_curpad[ix]) || IS_PADGV(PL_curpad[ix]) || IS_PADCONST(PL_curpad[ix]))
 		continue;
@@ -1763,8 +1768,7 @@ Perl_pad_tidy(pTHX_ padtidy_type type)
 	     * pad are anonymous subs.
 	     * The rest are created anew during cloning.
 	     */
-	    if (!((namesv = namep[ix]) != NULL &&
-		  namesv != &PL_sv_undef &&
+	    if (!((namesv = namep[ix]) != &PL_sv_undef &&
 		   *SvPVX_const(namesv) == '&'))
 	    {
 		SvREFCNT_dec(PL_curpad[ix]);
@@ -1780,9 +1784,10 @@ Perl_pad_tidy(pTHX_ padtidy_type type)
     }
 
     if (type == padtidy_SUB || type == padtidy_FORMAT) {
-	SV * const * const namep = AvARRAY(PL_comppad_name);
+	SV ** const namep = AvARRAY(PL_comppad_name);
 	PADOFFSET ix;
 	for (ix = AvFILLp(PL_comppad); ix > 0; ix--) {
+	    if (namep[ix] == &PL_sv_placeholder) namep[ix] = &PL_sv_undef;
 	    if (SvIMMORTAL(PL_curpad[ix]) || IS_PADGV(PL_curpad[ix]) || IS_PADCONST(PL_curpad[ix]))
 		continue;
 	    if (!SvPADMY(PL_curpad[ix])) {
@@ -2232,7 +2237,8 @@ Perl_pad_fixup_inner_anons(pTHX_ PADLIST *padlist, CV *old_cv, CV *new_cv)
 
     for (ix = AvFILLp(comppad_name); ix > 0; ix--) {
         const SV * const namesv = namepad[ix];
-	if (namesv && namesv != &PL_sv_undef && !SvPAD_STATE(namesv)
+	if (namesv && namesv != &PL_sv_undef
+	    && namesv != &PL_sv_placeholder && !SvPAD_STATE(namesv)
 	    && *SvPVX_const(namesv) == '&')
 	{
 	  if (SvTYPE(curpad[ix]) == SVt_PVCV) {

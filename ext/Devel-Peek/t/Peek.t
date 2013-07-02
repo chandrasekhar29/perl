@@ -179,8 +179,10 @@ do_test('integer constant',
 do_test('undef',
         undef,
 'SV = NULL\\(0x0\\) at $ADDR
-  REFCNT = 1
-  FLAGS = \\(\\)');
+  REFCNT = \d+
+  FLAGS = \\(\\)					# $] < 5.019
+  FLAGS = \\(READONLY\\)				# $] >= 5.019
+');
 
 do_test('reference to scalar',
         \$a,
