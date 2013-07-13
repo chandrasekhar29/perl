@@ -2329,7 +2329,7 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, char *strend,
     reginfo->poscache_maxiter = 0; /* not yet started a countdown */
     reginfo->strend = strend;
     /* see how far we have to get to not match where we matched before */
-    reginfo->till = startpos + minend;
+    reginfo->till = stringarg + minend;
 
     /* reserve next 2 or 3 slots in PL_regmatch_state:
      * slot N+0: may currently be in use: skip it
@@ -2386,9 +2386,9 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, char *strend,
     if (prog->extflags & RXf_GPOS_SEEN) { /* Need to set reginfo->ganch */
 	MAGIC *mg;
 	if (flags & REXEC_IGNOREPOS){	/* Means: check only at start */
-	    reginfo->ganch = startpos + prog->gofs;
+	    reginfo->ganch = stringarg;
 	    DEBUG_GPOS_r(PerlIO_printf(Perl_debug_log,
-	      "GPOS IGNOREPOS: reginfo->ganch = startpos + %"UVxf"\n",(UV)prog->gofs));
+	      "GPOS IGNOREPOS: reginfo->ganch = stringarg\n"));
 	} else if (sv && SvTYPE(sv) >= SVt_PVMG
 		  && SvMAGIC(sv)
 		  && (mg = mg_find(sv, PERL_MAGIC_regex_global))
