@@ -2021,7 +2021,6 @@ PP(pp_subst)
     char *strend;
     char *m;
     const char *c;
-    char *d;
     STRLEN clen;
     I32 iters = 0;
     I32 maxiters;
@@ -2188,8 +2187,9 @@ PP(pp_subst)
 	    orig = SvPV_force_nomg(TARG, len);
 	    goto force_it;
 	}
-	d = s;
+
 	if (once) {
+            char *d;
 	    if (RX_MATCH_TAINTED(rx)) /* run time pattern taint, eg locale */
 		rxtainted |= SUBST_TAINT_PAT;
 	    m = orig + RX_OFFS(rx)[0].start;
@@ -2228,6 +2228,7 @@ PP(pp_subst)
 	    PUSHs(&PL_sv_yes);
 	}
 	else {
+            char *d = s;
 	    do {
 		if (iters++ > maxiters)
 		    DIE(aTHX_ "Substitution loop");
