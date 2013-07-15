@@ -2196,11 +2196,10 @@ PP(pp_subst)
 	    }
 	    else if ((i = m - s)) {	/* faster from front */
 		d -= clen;
-		m = d;
 		Move(s, d - i, i, char);
 		sv_chop(TARG, d-i);
 		if (clen)
-		    Copy(c, m, clen, char);
+		    Copy(c, d, clen, char);
 	    }
 	    else if (clen) {
 		d -= clen;
