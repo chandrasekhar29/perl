@@ -2279,7 +2279,6 @@ PP(pp_subst)
 	    PUSHSUBST(cx);
 	    RETURNOP(cPMOP->op_pmreplrootu.op_pmreplroot);
 	}
-	r_flags |= REXEC_IGNOREPOS | REXEC_NOT_FIRST;
 	first = TRUE;
 	do {
 	    if (iters++ > maxiters)
@@ -2318,7 +2317,7 @@ PP(pp_subst)
 	    if (once)
 		break;
 	} while (CALLREGEXEC(rx, s, strend, orig, s == m,
-			     TARG, NULL, r_flags));
+			     TARG, NULL, REXEC_NOT_FIRST|REXEC_IGNOREPOS));
 	sv_catpvn_nomg_maybeutf8(dstr, s, strend - s, DO_UTF8(TARG));
 
 	if (rpm->op_pmflags & PMf_NONDESTRUCT) {
