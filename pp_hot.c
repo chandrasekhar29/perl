@@ -1384,8 +1384,8 @@ PP(pp_match)
     }
 
     /* get pos() if //g */
-    if (global && SvTYPE(TARG) >= SVt_PVMG && SvMAGIC(TARG)) {
-        MAGIC* const mg = mg_find(TARG, PERL_MAGIC_regex_global);
+    if (global) {
+	MAGIC * const mg = mg_find_mglob(TARG);
         if (mg && mg->mg_len >= 0) {
             curpos = mg->mg_len;
             /* last time pos() was set, it was zero-length match */
@@ -1437,17 +1437,9 @@ PP(pp_match)
     /* update pos */
 
     if (global && (gimme != G_ARRAY || (dynpm->op_pmflags & PMf_CONTINUE))) {
-        MAGIC* mg = NULL;
-        if (SvTYPE(TARG) >= SVt_PVMG && SvMAGIC(TARG))
-            mg = mg_find(TARG, PERL_MAGIC_regex_global);
-        if (!mg) {
-#ifdef PERL_OLD_COPY_ON_WRITE
-            if (SvIsCOW(TARG))
-                sv_force_normal_flags(TARG, 0);
-#endif
-            mg = sv_magicext(TARG, NULL, PERL_MAGIC_regex_global,
-                             &PL_vtbl_mglob, NULL, 0);
-        }
+        MAGIC *mg = mg_find_mglob(TARG);
+        if (!mg)
+            mg = sv_magicext_mglob(TARG);
         assert(RX_OFFS(rx)[0].start != -1); /* XXX get rid of next line? */
         if (RX_OFFS(rx)[0].start != -1) {
             mg->mg_len = RX_OFFS(rx)[0].end;
@@ -1502,11 +1494,9 @@ PP(pp_match)
 
 nope:
     if (global && !(dynpm->op_pmflags & PMf_CONTINUE)) {
-	if (SvTYPE(TARG) >= SVt_PVMG && SvMAGIC(TARG)) {
-	    MAGIC* const mg = mg_find(TARG, PERL_MAGIC_regex_global);
+	    MAGIC* const mg = mg_find_mglob(TARG);
 	    if (mg)
 		mg->mg_len = -1;
-	}
     }
     LEAVE_SCOPE(oldsave);
     if (gimme == G_ARRAY)
