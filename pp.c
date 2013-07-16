@@ -438,7 +438,8 @@ PP(pp_pos)
 	RETURN;
     }
     else {
-	    const MAGIC * const mg = mg_find_mglob(sv);
+	if (SvTYPE(sv) >= SVt_PVMG && SvMAGIC(sv)) {
+	    const MAGIC * const mg = mg_find(sv, PERL_MAGIC_regex_global);
 	    if (mg && mg->mg_len >= 0) {
 		dTARGET;
 		I32 i = mg->mg_len;
@@ -447,7 +448,8 @@ PP(pp_pos)
 		PUSHi(i);
 		RETURN;
 	    }
-	    RETPUSHUNDEF;
+	}
+	RETPUSHUNDEF;
     }
 }
 
