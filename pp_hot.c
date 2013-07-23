@@ -1387,7 +1387,7 @@ PP(pp_match)
     if (global) {
         MAGIC * const mg = mg_find_mglob(TARG);
         if (mg && mg->mg_len >= 0) {
-            curpos = mg->mg_len;
+            curpos = MgBYTEPOS(mg, TARG, truebase, len);
             /* last time pos() was set, it was zero-length match */
             if (mg->mg_flags & MGf_MINMATCH)
                 had_zerolen = 1;
@@ -1443,7 +1443,7 @@ PP(pp_match)
         }
         assert(RX_OFFS(rx)[0].start != -1); /* XXX get rid of next line? */
         if (RX_OFFS(rx)[0].start != -1) {
-            mg->mg_len = RX_OFFS(rx)[0].end;
+            MgBYTEPOS_set(mg, TARG, truebase, RX_OFFS(rx)[0].end);
             if (RX_ZERO_LEN(rx))
                 mg->mg_flags |= MGf_MINMATCH;
             else
