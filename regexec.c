@@ -2255,7 +2255,7 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, char *strend,
         reginfo->ganch =
             (flags & REXEC_IGNOREPOS)
             ? stringarg /* use start pos rather than pos() */
-            : (sv && (mg = mg_find_mglob(sv)) && mg->mg_len >= 0)
+            : (sv && (mg = mg_find_mglob(sv)) && mg->mg_len != -1)
               /* Defined pos(): */
             ? strbeg + MgBYTEPOS(mg, sv, strbeg, strend-strbeg)
             : strbeg; /* pos() not defined; use start of string */

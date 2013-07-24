@@ -1386,7 +1386,7 @@ PP(pp_match)
     /* get pos() if //g */
     if (global) {
         MAGIC * const mg = mg_find_mglob(TARG);
-        if (mg && mg->mg_len >= 0) {
+        if (mg && mg->mg_len != -1) {
             curpos = MgBYTEPOS(mg, TARG, truebase, len);
             /* last time pos() was set, it was zero-length match */
             if (mg->mg_flags & MGf_MINMATCH)
