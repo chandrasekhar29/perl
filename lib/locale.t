@@ -694,6 +694,10 @@ sub report_result {
 }
 
 sub report_multi_result {
+
+    # Called with the array pointed to by the third parameter be the list of
+    # code points that failed
+
     my ($Locale, $i, $results_ref) = @_;
 
     # $results_ref points to an array consisting of the characters that were
@@ -834,7 +838,6 @@ foreach $Locale (@Locale) {
     report_multi_result($Locale, $locales_test_number, \@failures);
 
     $locales_test_number++;
-    $final_casing_test_number = $locales_test_number;
     $test_names{$locales_test_number} = 'Verify that /[[:upper:]]/i matches all alpha X for which lc(X) == X and uc(X) != X';
     report_multi_result($Locale, $locales_test_number, \@fold_failures);
 
@@ -1134,6 +1137,7 @@ foreach $Locale (@Locale) {
         if ($is_utf8_locale) {
             use locale ':not_characters';
             push @f, $_ if (/[[:punct:]]/ and /[[:xdigit:]]/);
+            push @f, $_ if ord $_ > 250 && $Locale eq "fr_LU.utf8";
         }
         else {
             push @f, $_ if (/[[:punct:]]/ and /[[:xdigit:]]/);
@@ -1154,6 +1158,8 @@ foreach $Locale (@Locale) {
         }
     }
     report_multi_result($Locale, $locales_test_number, \@f);
+
+    $final_casing_test_number = $locales_test_number;
 
     # Test for read-only scalars' locale vs non-locale comparisons.
 
@@ -1671,8 +1677,10 @@ foreach ($first_locales_test_number..$final_locales_test_number) {
         if ($Okay{$_} && ($_ >= $first_casing_test_number
                           && $_ <= $final_casing_test_number))
         {
-            my $percent_fail = int(.5 + (100 * scalar(keys $Problem{$_})
-                                             / scalar(@{$Okay{$_}})));
+            # Round to nearest .1%
+            my $percent_fail = (int(.5 + (1000 * scalar(keys $Problem{$_})
+                                          / scalar(@Locale)))) 
+                               / 10;
             if ($percent_fail < $acceptable_fold_failure_percentage) {
                 $test_names{$_} .= 'TODO';
                 print "# ", 100 - $percent_fail, "% of locales pass the following test, so it is likely that the failures\n";
@@ -1680,8 +1688,14 @@ foreach ($first_locales_test_number..$final_locales_test_number) {
                 print "# problem is not likely to be Perl's\n";
             }
         }
-        unless ($debug) {
-            print "#\nFor more details, rerun, with environment variable PERL_DEBUG_FULL_TEST=1\n";
+        print "#\n";
+        if ($debug) {
+            print "# The code points that had this failure are given above.  Look for lines\n";
+            print "# that match 'failed $_'\n";
+        }
+        else {
+            print "# For more details, rerun, with environment variable PERL_DEBUG_FULL_TEST=1.\n";
+            print "# Then look at that output for lines that match 'failed $_'\n";
         }
 	print "not ";
     }
@@ -1693,82 +1707,6 @@ foreach ($first_locales_test_number..$final_locales_test_number) {
         print " # TODO" if $todo;
     }
     print "\n";
-}
-
-# Give final advice.
-
-my $didwarn = 0;
-
-foreach ($first_locales_test_number..$final_locales_test_number) {
-    if ($Problem{$_}) {
-	my @f = sort keys %{ $Problem{$_} };
-	my $f = join(" ", @f);
-	$f =~ s/(.{50,60}) /$1\n#\t/g;
-	print
-	    "#\n",
-            "# The locale ", (@f == 1 ? "definition" : "definitions"), "\n#\n",
-	    "#\t", $f, "\n#\n",
-	    "# on your system may have errors because the locale test $_\n",
-	    "# \"$test_names{$_}\"\n",
-            "# failed in ", (@f == 1 ? "that locale" : "those locales"),
-            ".\n";
-	print <<EOW;
-#
-# If your users are not using these locales you are safe for the moment,
-# but please report this failure first to perlbug\@perl.com using the
-# perlbug script (as described in the INSTALL file) so that the exact
-# details of the failures can be sorted out first and then your operating
-# system supplier can be alerted about these anomalies.
-#
-EOW
-	$didwarn = 1;
-    }
-}
-
-# Tell which locales were okay and which were not.
-
-if ($didwarn) {
-    my (@s, @F);
-
-    foreach my $l (@Locale) {
-	my $p = 0;
-        if ($setlocale_failed{$l}) {
-            $p++;
-        }
-        else {
-            foreach my $t
-                        ($first_locales_test_number..$final_locales_test_number)
-            {
-                $p++ if $Problem{$t}{$l};
-            }
-	}
-	push @s, $l if $p == 0;
-        push @F, $l unless $p == 0;
-    }
-
-    if (@s) {
-        my $s = join(" ", @s);
-        $s =~ s/(.{50,60}) /$1\n#\t/g;
-
-        warn
-    	    "# The following locales\n#\n",
-            "#\t", $s, "\n#\n",
-	    "# tested okay.\n#\n",
-    } else {
-        warn "# None of your locales were fully okay.\n";
-    }
-
-    if (@F) {
-        my $F = join(" ", @F);
-        $F =~ s/(.{50,60}) /$1\n#\t/g;
-
-        warn
-          "# The following locales\n#\n",
-          "#\t", $F, "\n#\n",
-          "# had problems.\n#\n",
-    } else {
-        warn "# None of your locales were broken.\n";
-    }
 }
 
 $test_num = $final_locales_test_number;
@@ -1897,6 +1835,82 @@ setlocale(LC_ALL, "C");
                 }
             }
         }
+    }
+}
+
+# Give final advice.
+
+my $didwarn = 0;
+
+foreach ($first_locales_test_number..$final_locales_test_number) {
+    if ($Problem{$_}) {
+	my @f = sort keys %{ $Problem{$_} };
+	my $f = join(" ", @f);
+	$f =~ s/(.{50,60}) /$1\n#\t/g;
+	print
+	    "#\n",
+            "# The locale ", (@f == 1 ? "definition" : "definitions"), "\n#\n",
+	    "#\t", $f, "\n#\n",
+	    "# on your system may have errors because the locale test $_\n",
+	    "# \"$test_names{$_}\"\n",
+            "# failed in ", (@f == 1 ? "that locale" : "those locales"),
+            ".\n";
+	print <<EOW;
+#
+# If your users are not using these locales you are safe for the moment,
+# but please report this failure first to perlbug\@perl.com using the
+# perlbug script (as described in the INSTALL file) so that the exact
+# details of the failures can be sorted out first and then your operating
+# system supplier can be alerted about these anomalies.
+#
+EOW
+	$didwarn = 1;
+    }
+}
+
+# Tell which locales were okay and which were not.
+
+if ($didwarn) {
+    my (@s, @F);
+
+    foreach my $l (@Locale) {
+	my $p = 0;
+        if ($setlocale_failed{$l}) {
+            $p++;
+        }
+        else {
+            foreach my $t
+                        ($first_locales_test_number..$final_locales_test_number)
+            {
+                $p++ if $Problem{$t}{$l};
+            }
+	}
+	push @s, $l if $p == 0;
+        push @F, $l unless $p == 0;
+    }
+
+    if (@s) {
+        my $s = join(" ", @s);
+        $s =~ s/(.{50,60}) /$1\n#\t/g;
+
+        warn
+    	    "# The following locales\n#\n",
+            "#\t", $s, "\n#\n",
+	    "# tested okay.\n#\n",
+    } else {
+        warn "# None of your locales were fully okay.\n";
+    }
+
+    if (@F) {
+        my $F = join(" ", @F);
+        $F =~ s/(.{50,60}) /$1\n#\t/g;
+
+        warn
+          "# The following locales\n#\n",
+          "#\t", $F, "\n#\n",
+          "# had problems.\n#\n",
+    } else {
+        warn "# None of your locales were broken.\n";
     }
 }
 
