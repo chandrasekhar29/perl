@@ -1137,7 +1137,6 @@ foreach $Locale (@Locale) {
         if ($is_utf8_locale) {
             use locale ':not_characters';
             push @f, $_ if (/[[:punct:]]/ and /[[:xdigit:]]/);
-            push @f, $_ if ord $_ > 250 && $Locale eq "fr_LU.utf8";
         }
         else {
             push @f, $_ if (/[[:punct:]]/ and /[[:xdigit:]]/);
